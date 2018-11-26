@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package proxysql.logs;
+
+message MySQL_Event_V1 {
+    uint32 thread_id = 1;
+    string username = 2;
+    string schemaname = 3;
+    uint64 start_time = 4;
+    uint64 end_time = 5;
+    uint64 query_digest = 6;
+    string query = 7;
+    string server = 8;
+    string client = 9;
+    enum LogEventType {
+        PROXYSQL_QUERY = 0;
+    }
+    LogEventType et = 10;
+    uint64 hid = 11;
+}
