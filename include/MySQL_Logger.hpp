@@ -36,6 +36,7 @@ class MySQL_Event {
 class MySQL_Logger {
 	private:
 	bool enabled;
+	enum log_event_format event_format;
 	char *base_filename;
 	char *datadir;
 	unsigned int log_file_id;

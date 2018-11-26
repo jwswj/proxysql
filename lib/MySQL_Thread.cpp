@@ -218,6 +218,7 @@ static char * mysql_thread_variables_names[]= {
 	(char *)"connection_max_age_ms",
 	(char *)"connect_timeout_server",
 	(char *)"connect_timeout_server_max",
+    (char *)"eventslog_fileformat",
 	(char *)"eventslog_filename",
 	(char *)"eventslog_filesize",
 	(char *)"default_charset",
@@ -413,6 +414,7 @@ MySQL_Threads_Handler::MySQL_Threads_Handler() {
 	variables.default_charset=33;
 	variables.interfaces=strdup((char *)"");
 	variables.server_version=strdup((char *)"5.5.30");
+    variables.eventslog_fileformat=FORMAT_UNSPECIFIED;
 	variables.eventslog_filename=strdup((char *)""); // proxysql-mysql-eventslog is recommended
 	variables.eventslog_filesize=100*1024*1024;
 	variables.server_capabilities=CLIENT_FOUND_ROWS | CLIENT_PROTOCOL_41 | CLIENT_IGNORE_SIGPIPE | CLIENT_TRANSACTIONS | CLIENT_SECURE_CONNECTION | CLIENT_CONNECT_WITH_DB;
@@ -583,6 +585,7 @@ char * MySQL_Threads_Handler::get_variable_string(char *name) {
 		return strdup(variables.default_time_zone);
 	}
 	if (!strcasecmp(name,"server_version")) return strdup(variables.server_version);
+	if (!strcasecmp(name,"eventslog_fileformat")) return fileformat_to_str(variables.eventslog_fileformat);
 	if (!strcasecmp(name,"eventslog_filename")) return strdup(variables.eventslog_filename);
 	if (!strcasecmp(name,"default_schema")) return strdup(variables.default_schema);
 	if (!strcasecmp(name,"interfaces")) return strdup(variables.interfaces);
@@ -772,6 +775,7 @@ char * MySQL_Threads_Handler::get_variable(char *name) {	// this is the public f
 		return strdup(variables.default_time_zone);
 	}
 	if (!strcasecmp(name,"server_version")) return strdup(variables.server_version);
+	if (!strcasecmp(name,"eventslog_fileformat")) return fileformat_to_str(variables.eventslog_fileformat);
 	if (!strcasecmp(name,"eventslog_filename")) return strdup(variables.eventslog_filename);
 	if (!strcasecmp(name,"default_schema")) return strdup(variables.default_schema);
 	if (!strcasecmp(name,"interfaces")) return strdup(variables.interfaces);
@@ -1919,6 +1923,18 @@ bool MySQL_Threads_Handler::set_variable(char *name, char *value) {	// this is t
 		}
 		return true;
 	}
+
+    // TODO [rkennedy]: *THIS* is where the input validation goes.
+    if (!strcasecmp(name,"eventslog_fileformat")) {
+        enum log_event_format format = parse_fileformat(value);
+        if (format == FORMAT_INVALID) {
+            proxy_error("%s is an invalid file format for eventslog_fileformat\n", value);
+            return false;
+        }
+
+        variables.eventslog_fileformat=format;
+        return true;
+    }
 
 	if (!strcasecmp(name,"eventslog_filename")) {
                 if (value[strlen(value) - 1] == '/') {
@@ -3497,6 +3513,43 @@ void MySQL_Thread::process_all_sessions() {
 	__sync_bool_compare_and_swap(&status_variables.active_transactions,total_active_transactions_tmp,total_active_transactions_);
 }
 
+const char* FORMAT_UNSPECIFIED_STR = "format_unspecified";
+const char* FORMAT_INVALID_STR = "format_invalid";
+const char* BINARY_V1_STR = "binary_v1";
+const char* BINARY_V2_STR = "binary_v2";
+const char* JSON_V1_STR = "json_v1";
+
+log_event_format parse_fileformat(char* str) {
+    if (str == NULL || strcmp(BINARY_V1_STR, str) == 0) {
+        return BINARY_V1;
+    } else if (strcmp(BINARY_V2_STR, str) == 0) {
+		return BINARY_V2;
+	} else if (strcmp(JSON_V1_STR, str) == 0) {
+		return JSON_V1;
+	} else {
+		proxy_error("Invalid query log format '%s'\n", str);
+		return FORMAT_INVALID;
+	}
+}
+
+char* fileformat_to_str(log_event_format format) {
+	switch (format) {
+		case FORMAT_UNSPECIFIED:
+			return strdup(FORMAT_UNSPECIFIED_STR);
+		case FORMAT_INVALID:
+			return strdup(FORMAT_INVALID_STR);
+		case BINARY_V1:
+			return strdup(BINARY_V1_STR);
+		case BINARY_V2:
+			return strdup(BINARY_V2_STR);
+		case JSON_V1:
+			return strdup(JSON_V1_STR);
+		default:
+			proxy_warning("Was somehow given an invalid log_event_format enum: %d", format);
+			return strdup(FORMAT_INVALID_STR);
+	}
+}
+
 void MySQL_Thread::refresh_variables() {
 	if (GloMTH==NULL) {
 		return;
@@ -3593,10 +3646,11 @@ void MySQL_Thread::refresh_variables() {
 	mysql_thread___default_time_zone=GloMTH->get_variable_string((char *)"default_time_zone");
 	if (mysql_thread___server_version) free(mysql_thread___server_version);
 	mysql_thread___server_version=GloMTH->get_variable_string((char *)"server_version");
+	mysql_thread___eventslog_fileformat=parse_fileformat(GloMTH->get_variable_string((char *)"eventslog_fileformat"));
 	if (mysql_thread___eventslog_filename) free(mysql_thread___eventslog_filename);
 	mysql_thread___eventslog_filesize=GloMTH->get_variable_int((char *)"eventslog_filesize");
 	mysql_thread___eventslog_filename=GloMTH->get_variable_string((char *)"eventslog_filename");
-	GloMyLogger->set_base_filename(); // both filename and filesize are set here
+	GloMyLogger->set_base_filename(); // fileformat, filename and filesize are set here
 	if (mysql_thread___default_schema) free(mysql_thread___default_schema);
 	mysql_thread___default_schema=GloMTH->get_variable_string((char *)"default_schema");
 	mysql_thread___server_capabilities=GloMTH->get_variable_uint16((char *)"server_capabilities");
