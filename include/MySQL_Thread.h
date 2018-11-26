@@ -26,6 +26,10 @@ static unsigned int near_pow_2 (unsigned int n) {
   return i ? i : n;
 }
 
+log_event_format parse_fileformat(char* str);
+
+char* fileformat_to_str(log_event_format format);
+
 #ifdef IDLE_THREADS
 typedef struct __attribute__((aligned(CACHE_LINE_SIZE))) _conn_exchange_t {
 	pthread_mutex_t mutex_idles;
@@ -427,6 +431,7 @@ class MySQL_Threads_Handler
 		int poll_timeout;
 		int poll_timeout_on_failure;
 		int connpoll_reset_queue_length;
+		enum log_event_format eventslog_fileformat;
 		char *eventslog_filename;
 		int eventslog_filesize;
 		// SSL related, proxy to server

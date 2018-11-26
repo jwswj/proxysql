@@ -119,7 +119,7 @@ deps/curl/curl-7.57.0/
 deps/libev/libev-4.24/
 
 #protobuf
-deps/protobuf/protobuf-2.6.1/
+deps/protobuf/protobuf-3.6.1/
 
 deps/sqlite3/sqlite-amalgamation-3150000/
 deps/sqlite3/sqlite-amalgamation-3190200/

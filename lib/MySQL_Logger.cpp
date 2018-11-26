@@ -3,6 +3,13 @@
 #include "cpp.h"
 #include <dirent.h>
 #include <libgen.h>
+#include "mysql_event_v1.pb.h"
+#include <google/protobuf/util/json_util.h>
+
+using google::protobuf::util::Status;
+using google::protobuf::util::MessageToJsonString;
+using proxysql::logs::MySQL_Event_V1;
+using proxysql::logs::MySQL_Event_V1_LogEventType_PROXYSQL_QUERY;
 
 static uint8_t mysql_encode_length(uint64_t len, unsigned char *hd) {
 	if (len < 251) return 1;
@@ -145,6 +152,7 @@ extern Query_Processor *GloQPro;
 
 MySQL_Logger::MySQL_Logger() {
 	enabled=false;
+	event_format=BINARY_V1; // BINARY_V1 is the default if unspecified
 	base_filename=NULL;
 	datadir=NULL;
 	base_filename=strdup((char *)"");
@@ -235,10 +243,10 @@ void MySQL_Logger::open_log_unlocked() {
 };
 
 void MySQL_Logger::set_base_filename() {
-	// if filename is the same, return
+	// if fileformat and filename are the same, return
 	wrlock();
 	max_log_file_size=mysql_thread___eventslog_filesize;
-	if (strcmp(base_filename,mysql_thread___eventslog_filename)==0) {
+	if ((event_format == mysql_thread___eventslog_fileformat) && strcmp(base_filename,mysql_thread___eventslog_filename)==0) {
 		wrunlock();
 		return;
 	}
@@ -247,6 +255,7 @@ void MySQL_Logger::set_base_filename() {
 	// set file id to 0 , so that find_next_id() will be called
 	log_file_id=0;
 	free(base_filename);
+	event_format=mysql_thread___eventslog_fileformat;
 	base_filename=strdup(mysql_thread___eventslog_filename);
 	if (strlen(base_filename)) {
 		enabled=true;
@@ -315,8 +324,37 @@ void MySQL_Logger::log_request(MySQL_Session *sess, MySQL_Data_Stream *myds) {
 
 	wrlock();
 
-	me.write(logfile);
-
+	if (event_format == BINARY_V1) {
+		me.write(logfile);
+	} else if (event_format == BINARY_V2) {
+		
+	} else if (event_format == JSON_V1) {
+        MySQL_Event_V1 event;
+        event.set_thread_id(sess->thread_session_id);
+        event.set_username(ui->username);
+        event.set_schemaname(ui->schemaname);
+        event.set_start_time(sess->CurrentQuery.start_time + curtime_real - curtime_mono);
+        event.set_end_time(sess->CurrentQuery.end_time + curtime_real - curtime_mono);
+        event.set_query_digest(GloQPro->get_digest(&sess->CurrentQuery.QueryParserArgs));
+        event.set_query((char*)sess->CurrentQuery.QueryPointer, sess->CurrentQuery.QueryLength);
+        event.set_server(sa, sl);
+        event.set_client(ca, cl);
+        event.set_et(MySQL_Event_V1_LogEventType_PROXYSQL_QUERY);
+        event.set_hid(myds->myconn->parent->myhgc->hid);
+        
+        string json;
+        Status status = MessageToJsonString(event, &json);
+        if (status.ok()) {
+            (*logfile) << json << std::endl;
+        } else {
+            proxy_warning("Failed to convert query log entry to JSON: %s", 
+                    status.error_message());
+        }
+	} else {
+		// Logging format is invalid
+		// TODO: Only emit this every so often as a reminder.
+		proxy_warning("Skipping logging, specified format is invalid");
+	}
 
 	unsigned long curpos=logfile->tellp();
 	if (curpos > max_log_file_size) {
