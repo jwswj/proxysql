@@ -11,9 +11,9 @@ endif
 
 PROXYSQLCLICKHOUSE := $(shell echo $(PROXYSQLCLICKHOUSE))
 ifeq ($(PROXYSQLCLICKHOUSE),1)
-default: libconfig libdaemon jemalloc mariadb_client re2 sqlite3 pcre clickhouse-cpp lz4 cityhash microhttpd curl ev coredumper libssl
+default: libconfig libdaemon jemalloc mariadb_client re2 sqlite3 pcre clickhouse-cpp lz4 cityhash microhttpd curl ev coredumper libssl protobuf
 else
-default: libconfig libdaemon jemalloc mariadb_client re2 sqlite3 pcre microhttpd curl ev coredumper libssl
+default: libconfig libdaemon jemalloc mariadb_client re2 sqlite3 pcre microhttpd curl ev coredumper libssl protobuf
 endif
 .PHONY: default
 
@@ -147,6 +147,13 @@ pcre/pcre/.libs/libpcre.a:
 	cd pcre/pcre && CC=${CC} CXX=${CXX} ${MAKE}
 pcre: pcre/pcre/.libs/libpcre.a
 
+protobuf/protobuf-3.6.1/src/protoc:
+	cd protobuf && rm -rf protobuf-cpp-3.6.1
+	cd protobuf && tar -zxf protobuf-cpp-3.6.1.tar.gz
+	cd protobuf/protobuf-3.6.1 && ./configure --disable-shared
+	cd protobuf/protobuf-3.6.1 && CC=${CC} CXX=${CXX} ${MAKE}
+protobuf: protobuf/protobuf-3.6.1/src/protoc
+
 cleanpart:
 	cd mariadb-client-library && rm -rf mariadb-connector-c-2.3.1
 	cd mariadb-client-library && rm -rf mariadb-connector-c-3.0.2-src
@@ -171,5 +178,6 @@ cleanall:
 	cd libev && rm -rf libev-4.24 || true
 	cd libssl && rm -rf openssl-1.1.0h || true
 	cd libconfig && rm -rf libconfig-1.7.2 || true
+	cd protobuf && rm -rf protobuf-3.6.1 || true
 .PHONY: cleanall
 
