@@ -108,6 +108,10 @@ endif
 LIBPROXYSQLAR+= $(SSL_LDIR)/libssl.a $(SSL_LDIR)/libcrypto.a
 ODIR= obj
 
+PROTO_DIR=../protos
+PROTOBUF_DIR=../deps/protobuf/protobuf-3.6.1
+LIBPROXYSQLAR+= $(PROTO_DIR)/mysql_event_v1.a $(PROTOBUF_DIR)/src/.libs/libprotobuf.a
+
 EXECUTABLE=proxysql
 
 _OBJ = main.o proxysql_global.o

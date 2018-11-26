@@ -21,10 +21,10 @@ else
 endif
 
 .PHONY: default
-default: build_deps build_lib build_src
+default: build_deps build_protos build_lib build_src
 
 .PHONY: debug
-debug: build_deps_debug build_lib_debug build_src_debug
+debug: build_deps_debug build_protos_debug build_lib_debug build_src_debug
 
 .PHONY: clickhouse
 clickhouse: build_deps_clickhouse build_lib_clickhouse build_src_clickhouse
@@ -37,6 +37,10 @@ debug_clickhouse: build_deps_debug_clickhouse build_lib_debug_clickhouse build_s
 build_deps:
 	cd deps && OPTZ="${O2} -ggdb" CC=${CC} CXX=${CXX} ${MAKE}
 
+.PHONY: build_protos
+build_protos: build_deps
+	cd protos && OPTZ="${O2} -ggdb" CC=${CC} CXX=${CXX} ${MAKE}
+
 .PHONY: build_lib
 build_lib: build_deps
 	cd lib && OPTZ="${O2} -ggdb" CC=${CC} CXX=${CXX} ${MAKE}
@@ -48,6 +52,10 @@ build_src: build_deps build_lib
 .PHONY: build_deps_debug
 build_deps_debug:
 	cd deps && OPTZ="${O0} -ggdb -DDEBUG" PROXYDEBUG=1 CC=${CC} CXX=${CXX} ${MAKE}
+
+.PHONY: build_protos_debug
+build_protos_debug: build_deps
+	cd protos && OPTZ="${O2} -ggdb" -DDEBUG" PROXYDEBUG=1 CC=${CC} CXX=${CXX} ${MAKE}
 
 .PHONY: build_lib_debug
 build_lib_debug: build_deps_debug
@@ -86,6 +94,7 @@ build_src_debug_clickhouse: build_deps build_lib_debug_clickhouse
 clean:
 	cd lib && ${MAKE} clean
 	cd src && ${MAKE} clean
+	cd protos && ${MAKE} clean
 
 packages: centos6.7 centos7 centos6.7-dbg centos7-dbg ubuntu14 debian7 debian8 ubuntu14-dbg debian7-dbg debian8-dbg ubuntu16 ubuntu16-dbg fedora24 fedora24-dbg debian9 debian9-dbg ubuntu16-clickhouse debian9-clickhouse centos7-clickhouse fedora24-clickhouse fedora27 fedora27-dbg fedora27-clickhouse ubuntu18 ubuntu18-dbg ubuntu18-clickhouse fedora28 fedora28-dbg fedora28-clickhouse
 .PHONY: packages
@@ -337,6 +346,7 @@ cleanall:
 	cd deps && ${MAKE} cleanall
 	cd lib && ${MAKE} clean
 	cd src && ${MAKE} clean
+	cd protos && ${MAKE} clean
 	rm binaries/*deb || true
 	rm binaries/*rpm || true
 
@@ -345,6 +355,7 @@ cleanbuild:
 	cd deps && ${MAKE} cleanall
 	cd lib && ${MAKE} clean
 	cd src && ${MAKE} clean
+	cd protos && ${MAKE} clean
 
 install: src/proxysql
 	install -m 0755 src/proxysql /usr/bin
