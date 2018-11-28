@@ -137,6 +137,9 @@ deps/libssl/openssl-1.1.0h/
 #google coredumper
 deps/google-coredumper/google-coredumper/
 
+#json-c
+deps/json-c/json-c-json-c-0.13.1-20180305/
+
 test/.vagrant
 .DS_Store
 proxysql-tests.ini

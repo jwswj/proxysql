@@ -11,9 +11,9 @@ endif
 
 PROXYSQLCLICKHOUSE := $(shell echo $(PROXYSQLCLICKHOUSE))
 ifeq ($(PROXYSQLCLICKHOUSE),1)
-default: libconfig libdaemon jemalloc mariadb_client re2 sqlite3 pcre clickhouse-cpp lz4 cityhash microhttpd curl ev coredumper libssl
+default: libconfig libdaemon jemalloc mariadb_client re2 sqlite3 pcre clickhouse-cpp lz4 cityhash microhttpd curl ev coredumper libssl json-c
 else
-default: libconfig libdaemon jemalloc mariadb_client re2 sqlite3 pcre microhttpd curl ev coredumper libssl
+default: libconfig libdaemon jemalloc mariadb_client re2 sqlite3 pcre microhttpd curl ev coredumper libssl json-c
 endif
 .PHONY: default
 
@@ -147,6 +147,13 @@ pcre/pcre/.libs/libpcre.a:
 	cd pcre/pcre && CC=${CC} CXX=${CXX} ${MAKE}
 pcre: pcre/pcre/.libs/libpcre.a
 
+json-c/json-c-json-c-0.13.1-20180305/.libs/libjson-c.a:
+	cd json-c && rm -rf json-c-json-c-0.13.1-20180305
+	cd json-c && tar -xzf json-c-0.13.1-20180305.tar.gz
+	cd json-c/json-c-json-c-0.13.1-20180305 && ./configure
+	cd json-c/json-c-json-c-0.13.1-20180305 && CC=${CC} CXX=${CXX} ${MAKE}
+json-c: json-c/json-c-json-c-0.13.1-20180305/.libs/libjson-c.a
+
 cleanpart:
 	cd mariadb-client-library && rm -rf mariadb-connector-c-2.3.1
 	cd mariadb-client-library && rm -rf mariadb-connector-c-3.0.2-src
@@ -171,5 +178,6 @@ cleanall:
 	cd libev && rm -rf libev-4.24 || true
 	cd libssl && rm -rf openssl-1.1.0h || true
 	cd libconfig && rm -rf libconfig-1.7.2 || true
+	cd json-c && rm -rf json-c-json-c-0.13.1-20180305 || true
 .PHONY: cleanall
 
