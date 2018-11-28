@@ -3,6 +3,7 @@
 #include "cpp.h"
 #include <dirent.h>
 #include <libgen.h>
+#include "json_object.h"
 
 static uint8_t mysql_encode_length(uint64_t len, unsigned char *hd) {
 	if (len < 251) return 1;
@@ -48,11 +49,11 @@ void MySQL_Event::set_server(int _hid, const char *ptr, int len) {
 	hid=_hid;
 }
 
-uint64_t MySQL_Event::write(std::fstream *f) {
+uint64_t MySQL_Event::write(std::fstream *f, enum log_event_format event_format) {
 	uint64_t total_bytes=0;
 	switch (et) {
 		case PROXYSQL_QUERY:
-			total_bytes=write_query(f);
+			total_bytes=write_query(f, event_format);
 			break;
 		default:
 			break;
@@ -60,7 +61,19 @@ uint64_t MySQL_Event::write(std::fstream *f) {
 	return total_bytes;
 }
 
-uint64_t MySQL_Event::write_query(std::fstream *f) {
+uint64_t MySQL_Event::write_query(std::fstream *f, enum log_event_format event_format) {
+    if (event_format == BINARY) {
+        return write_binary_query(f);
+    } else if (event_format == JSON) {
+        return write_json_query(f);
+    } else {
+        // Logging format is invalid or unspecified
+        proxy_warning("Skipping logging, specified format is invalid");
+        return 0;
+    }
+}
+
+uint64_t MySQL_Event::write_binary_query(std::fstream *f) {
 	uint64_t total_bytes=0;
 	total_bytes+=1; // et
 	total_bytes+=mysql_encode_length(thread_id, NULL);
@@ -141,10 +154,59 @@ uint64_t MySQL_Event::write_query(std::fstream *f) {
 	return total_bytes;
 }
 
+// Constant JSON object key names for query log events.
+const char* THREAD_ID_KEY="thread_id";
+const char* USERNAME_KEY="username";
+const char* SCHEMANAME_KEY="schemaname";
+const char* START_TIME_KEY="start_time";
+const char* END_TIME_KEY="end_time";
+const char* QUERY_DIGEST_KEY="query_digest";
+const char* QUERY_KEY="query";
+const char* SERVER_KEY="server";
+const char* CLIENT_KEY="client";
+const char* ET_KEY="et";
+const char* HID_KEY="hid";
+
+// These option settings for json_object_object_add_ex() allow json-c to skip some unnecessary checks/strdup()
+// invocations, which can yield significant savings when serializing. They require some care to be taken whenever
+// new fields are added to the output format: 1) duplicate key names are not allowed and 2) key names must be constants.
+const unsigned JSON_OBJ_ADD_OPTS=(JSON_C_OBJECT_ADD_KEY_IS_NEW | JSON_C_OBJECT_KEY_IS_CONSTANT);
+
+uint64_t MySQL_Event::write_json_query(std::fstream *f) {
+    json_object* event=json_object_new_object();
+
+	size_t json_length = 0;
+    if (json_object_object_add_ex(event, THREAD_ID_KEY, json_object_new_int64(thread_id), JSON_OBJ_ADD_OPTS) |
+			json_object_object_add_ex(event, USERNAME_KEY, json_object_new_string(username), JSON_OBJ_ADD_OPTS) |
+			json_object_object_add_ex(event, SCHEMANAME_KEY, json_object_new_string(schemaname), JSON_OBJ_ADD_OPTS) |
+			json_object_object_add_ex(event, START_TIME_KEY, json_object_new_int64(start_time), JSON_OBJ_ADD_OPTS) |
+			json_object_object_add_ex(event, END_TIME_KEY, json_object_new_int64(end_time), JSON_OBJ_ADD_OPTS) |
+			json_object_object_add_ex(event, QUERY_DIGEST_KEY, json_object_new_int64(query_digest), JSON_OBJ_ADD_OPTS) |
+			json_object_object_add_ex(event, QUERY_KEY, json_object_new_string_len(query_ptr, query_len), JSON_OBJ_ADD_OPTS) |
+			json_object_object_add_ex(event, SERVER_KEY, json_object_new_string_len(server, server_len), JSON_OBJ_ADD_OPTS) |
+			json_object_object_add_ex(event, CLIENT_KEY, json_object_new_string_len(client, client_len), JSON_OBJ_ADD_OPTS) |
+			json_object_object_add_ex(event, ET_KEY, json_object_new_int64(PROXYSQL_QUERY), JSON_OBJ_ADD_OPTS) |
+			json_object_object_add_ex(event, HID_KEY, json_object_new_int64(hid), JSON_OBJ_ADD_OPTS) != 0) {
+    	// json-c doesn't tell us anything interesting about failures, so we can't include much else in the
+    	// error message here.
+    	proxy_error("Error building JSON");
+    } else {
+        // The char* returned by json_object_to_json_string_length() is owned by the json_object and will
+        // be free'd when json_object_put() is called below.
+		const char* json=json_object_to_json_string_length(event, JSON_C_TO_STRING_PLAIN, &json_length);
+		(*f) << json << std::endl;
+		json_length+=1; // the delimiter std::endl adds a byte
+	}
+
+    json_object_put(event);
+    return json_length;
+}
+
 extern Query_Processor *GloQPro;
 
 MySQL_Logger::MySQL_Logger() {
 	enabled=false;
+	event_format=BINARY; // BINARY is the default if unspecified
 	base_filename=NULL;
 	datadir=NULL;
 	base_filename=strdup((char *)"");
@@ -235,10 +297,10 @@ void MySQL_Logger::open_log_unlocked() {
 };
 
 void MySQL_Logger::set_base_filename() {
-	// if filename is the same, return
+	// if fileformat and filename are the same, return
 	wrlock();
 	max_log_file_size=mysql_thread___eventslog_filesize;
-	if (strcmp(base_filename,mysql_thread___eventslog_filename)==0) {
+	if ((event_format == mysql_thread___eventslog_fileformat) && strcmp(base_filename,mysql_thread___eventslog_filename)==0) {
 		wrunlock();
 		return;
 	}
@@ -247,6 +309,7 @@ void MySQL_Logger::set_base_filename() {
 	// set file id to 0 , so that find_next_id() will be called
 	log_file_id=0;
 	free(base_filename);
+	event_format=mysql_thread___eventslog_fileformat;
 	base_filename=strdup(mysql_thread___eventslog_filename);
 	if (strlen(base_filename)) {
 		enabled=true;
@@ -315,7 +378,7 @@ void MySQL_Logger::log_request(MySQL_Session *sess, MySQL_Data_Stream *myds) {
 
 	wrlock();
 
-	me.write(logfile);
+	me.write(logfile, event_format);
 
 
 	unsigned long curpos=logfile->tellp();

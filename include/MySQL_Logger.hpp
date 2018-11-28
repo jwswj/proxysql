@@ -27,8 +27,10 @@ class MySQL_Event {
 	uint64_t hid;
 	public:
 	MySQL_Event(uint32_t _thread_id, char * _username, char * _schemaname , uint64_t _start_time , uint64_t _end_time , uint64_t _query_digest, char *_client, size_t _client_len);
-	uint64_t write(std::fstream *f);
-	uint64_t write_query(std::fstream *f);
+	uint64_t write(std::fstream *f, enum log_event_format event_format);
+	uint64_t write_query(std::fstream *f, enum log_event_format event_format);
+	uint64_t write_binary_query(std::fstream *f);
+	uint64_t write_json_query(std::fstream *f);
 	void set_query(const char *ptr, int len);
 	void set_server(int _hid, const char *ptr, int len);
 };
@@ -36,6 +38,7 @@ class MySQL_Event {
 class MySQL_Logger {
 	private:
 	bool enabled;
+	enum log_event_format event_format;
 	char *base_filename;
 	char *datadir;
 	unsigned int log_file_id;

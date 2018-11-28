@@ -14,6 +14,13 @@ enum log_event_type {
 	PROXYSQL_QUERY
 };
 
+enum log_event_format {
+    FORMAT_UNSPECIFIED, // No format has been specified
+	FORMAT_INVALID,     // A bad format was provided
+	BINARY,             // Binary format
+	JSON                // JSON format
+};
+
 enum cred_username_type { USERNAME_BACKEND, USERNAME_FRONTEND };
 
 enum MDB_ASYNC_ST { // MariaDB Async State Machine
@@ -660,6 +667,7 @@ __thread char * mysql_thread___ssl_p2s_key;
 __thread char * mysql_thread___ssl_p2s_cipher;
 
 /* variables used by events log */
+__thread enum log_event_format mysql_thread___eventslog_fileformat;
 __thread char * mysql_thread___eventslog_filename;
 __thread int mysql_thread___eventslog_filesize;
 
@@ -776,6 +784,7 @@ extern __thread char * mysql_thread___ssl_p2s_key;
 extern __thread char * mysql_thread___ssl_p2s_cipher;
 
 /* variables used by events log */
+extern __thread enum log_event_format mysql_thread___eventslog_fileformat;
 extern __thread char * mysql_thread___eventslog_filename;
 extern __thread int mysql_thread___eventslog_filesize;
 

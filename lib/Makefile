@@ -42,10 +42,12 @@ SSL_IDIR=$(SSL_DIR)/include
 EV_DIR=$(DEPS_PATH)/libev/libev/
 EV_IDIR=$(EV_DIR)
 
+JSONC_DIR=$(DEPS_PATH)/json-c/json-c-json-c-0.13.1-20180305
+JSONC_IDIRS=-I$(JSONC_DIR)
 
 IDIR=../include
 
-IDIRS=-I$(IDIR) -I$(JEMALLOC_IDIR) -I$(MARIADB_IDIR) $(LIBCONFIG_IDIR) -I$(RE2_IDIR) -I$(SQLITE3_DIR) -I$(PCRE_PATH) -I/usr/local/include -I$(CLICKHOUSE_CPP_DIR) $(MICROHTTPD_IDIR) $(CURL_IDIR) -I$(EV_DIR) -I$(COREDUMPER_IDIR) -I$(SSL_IDIR)
+IDIRS=-I$(IDIR) -I$(JEMALLOC_IDIR) -I$(MARIADB_IDIR) $(LIBCONFIG_IDIR) -I$(RE2_IDIR) -I$(SQLITE3_DIR) -I$(PCRE_PATH) -I/usr/local/include -I$(CLICKHOUSE_CPP_DIR) $(MICROHTTPD_IDIR) $(CURL_IDIR) -I$(EV_DIR) -I$(COREDUMPER_IDIR) -I$(SSL_IDIR) $(JSONC_IDIRS)
 
 LDIRS=-L$(JEMALLOC_PATH)/lib -L$(RE2_PATH)/obj -L$(INJECTION_PATH)
 
@@ -104,8 +106,8 @@ $(ODIR)/%.o: %.c
 $(ODIR)/%.oo: %.cpp
 	$(CXX) -fPIC -c -o $@ $< $(MYCXXFLAGS) $(CXXFLAGS)
 
-libproxysql.a: $(ODIR) $(OBJ) $(OBJ_CXX) $(RE2_PATH)/obj/libre2.a $(SQLITE3_DIR)/sqlite3.o
-	ar rcs $@ $(OBJ) $(OBJ_CXX) $(RE2_PATH)/obj/libre2.a $(SQLITE3_DIR)/sqlite3.o
+libproxysql.a: $(ODIR) $(OBJ) $(OBJ_CXX) $(RE2_PATH)/obj/libre2.a $(SQLITE3_DIR)/sqlite3.o $(JSONC_DIR)/.libs/libjson-c.a
+	ar rcs $@ $(OBJ) $(OBJ_CXX) $(RE2_PATH)/obj/libre2.a $(SQLITE3_DIR)/sqlite3.o $(JSONC_DIR)/.libs/libjson-c.a
 
 $(ODIR):
 	mkdir $(ODIR)
